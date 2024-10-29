@@ -1,3 +1,4 @@
-type: gh-pages
-repo: obantioquia/deforestacion-dashboard 
-branch: gh-pages
+- source: project
+  quarto-pub:
+    - id: 7525431c-d830-4029-bec0-3c47e041040c
+      url: 'https://obantioquia.quarto.pub/deforestacion-dashboard'
