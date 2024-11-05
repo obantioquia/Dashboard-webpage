@@ -630,7 +630,6 @@ Data_Historico |>
 
 ```{r message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
 
-#AlertasGFW <- st_read()
 GFW_puntos_planas <- st_read("Data/output/GFW_Alerts_Recent.shp")
 
 veredas <- st_read("Data/input/VeredasAntioquia.shp") |>

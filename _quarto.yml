@@ -8,5 +8,8 @@ format:
   html:
     theme: [simplex, custom.scss]
     css: styles.css
-
-
+# 
+# publish:
+#   github:
+#     repo: "obantioquia/Dashboard-webpage"
+#     branch: "gh-pages"
