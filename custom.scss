@@ -1,0 +1,13 @@
+/*-- scss:defaults --*/
+
+@font-face {
+    font-family: 'Lato';
+    src: url('fonts/Lato-Italic.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+// Estilo de cuerpo
+body {
+    font-family: 'Lato', sans-serif; // Usa la fuente local como principal
+}

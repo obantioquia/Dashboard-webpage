@@ -1,14 +1,769 @@
 ---
-title: "deforestacion-dashboard"
+title: "Sistema de alertas tempranas de deforestación"
+lang: es
+format: 
+  dashboard:
+    logo: Data/logo/OBA-blanco-2020.png
+    css: styles.css
+    self-contained: true
+    orientation: columns
+    theme: [simplex, custom.scss]
 ---
 
-This is a Quarto website.
 
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
 
 ```{r}
-1 + 1
+#| message: false
+library(tidyverse)
+library(httr2)
+library(sf)
+library(leaflet)
+library(gt)
+library(echarts4r)
+library(dplyr)
+library(scales)
+library(paletteer)
+library(grDevices)
+library(d3scatter)
+library(crosstalk)
+library(leaflet.esri)
+library(terra)
+library(DT)
+library(summarywidget)
+library(rvest)
 ```
 
-habrán cambios?
-seguro
+```{r message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
+
+
+antioquia <- st_read("Data/input/Antioquia.geojson") |> 
+                st_transform(crs=4326)
+
+Municipios <- st_read("Data/input/MunicipiosAntioquia.geojson") |>
+                st_transform(crs=4326)
+
+veredas <- st_read("Data/input/VeredasAntioquia.shp") |>
+  st_transform(crs=4326)
+
+AlertasGFW_cluster <- st_read("Data/output/GFW_Alerts.shp") |> st_transform(crs=4326)
+
+
+atdIDEAM <- st_read("Data/output/IDEAM_atd.shp") |> st_transform(crs=4326)
+
+atdIDEAM_POL <- st_read("Data/output/IDEAM_atd_poligonos.shp") |> st_transform(crs=4326)
+atdIDEAM_POL$Area_ha <- st_area(atdIDEAM_POL)/10000
+
+
+# Consulta de basemap de Planet
+library(rvest)
+
+parsed_html <- read_html("https://api.planet.com/basemaps/v1/services?api_key=9fdb79ea027a47f9acc452a47b7ff779")
+
+Tabla <- as.data.frame(html_table(parsed_html)[[1]])
+
+# Filtra último basemap
+lastBasemap <- Tabla[dim(Tabla)[1],] 
+NombrePlanet <- lastBasemap[1,1]
+Links <- lastBasemap[1,2]
+Link_xyz <- strsplit(Links, " : ")[[1]][3]
+
+FechaImagen <- NombrePlanet |> strsplit(" ")
+FechaImagen <- FechaImagen[[1]][4]
+
+addCircleLegend <- function(
+    map, title = "", labels, colors, sizes, borderColors, opacities,
+    position = c("topright", "bottomright", "bottomleft", "topleft"),
+    layerId = NULL) {
+  
+  circle_style <- function(color, size, borderColor, opacity) {
+    glue::glue(
+      "border-radius: 50%;
+      width: {size}px;
+      height: {size}px;
+      background-color: {color};
+      border: 2px solid {borderColor};
+      display: inline-block;
+      opacity: {opacity};  /* Usar la opacidad individual */
+      margin-right: 5px;"
+    )
+  }
+  
+  legend_items <- purrr::pmap(list(colors, sizes, borderColors, opacities), ~glue::glue(
+    '<div style="margin-bottom: 5px;">
+      <div style="{circle_style(..1, ..2, ..3, ..4)}"></div>{labels[which(colors == ..1)]}
+    </div>'
+  ))
+  
+  legend_html <- htmltools::HTML(glue::glue(
+    '<div style="padding: 5px; background-color: white;">
+      <div style="font-weight: bold; margin-bottom: 5px;">{title}</div>
+      {paste(legend_items, collapse = "")}
+    </div>'
+  ))
+  
+  leaflet::addControl(map, html = legend_html, position = position, layerId = layerId)
+}
+
+```
+
+
+<span class="title-style"> Reporte `r 1` </span>
+
+<span class="fecha-style"> `r format(Sys.Date(), "%d de %B de %Y")` </span>
+
+# Geovisor
+
+## Column {scrolling="true"}
+
+### Row {height="16%" fill="false"}
+
+```{r}
+#| component: valuebox
+#| title: Alertas GFW
+#| padding: 0px
+list(
+  icon = "exclamation-triangle-fill",
+  color = "#A93154FF",
+  value = format(dim(AlertasGFW_cluster)[1], big.mark = ".", decimal.mark = ",")
+)
+```
+
+```{r}
+#| component: valuebox
+#| title: Alertas IDEAM
+list(
+  icon = "exclamation-triangle-fill",
+  color = "#028a88",
+  value = format(dim(atdIDEAM)[1], big.mark=".", decimal.mark = ",")
+)
+```
+
+### Row {height = "20%"}
+
+::: {.card title="Distribución por municipio"}
+Periodo analizado: `r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$FechaFin))`
+:::
+
+### Row {height="40%" title="Distribución por municipio"}
+
+```{r}
+AlertasMunicipios <- st_join(AlertasGFW_cluster, Municipios) |>
+                          group_by(MPIO_CNMBR) |>
+                          summarise(num_Alertas = n(),
+                                    Area_ha = sum(area)) |>
+                          arrange(desc(Area_ha))
+
+names(AlertasMunicipios)[2] <- "Número de alertas"
+
+AlertasMunicipios$cumSum <- cumsum(AlertasMunicipios$`Número de alertas`)
+AlertasMunicipios$freqRelAcum <- AlertasMunicipios$cumSum/dim(AlertasGFW_cluster)[1]
+
+AlertasMunicipios_sub <- AlertasMunicipios[1:length(which(AlertasMunicipios$freqRelAcum < 0.80)),]
+
+AlertasMunicipios_sub <- data.frame(AlertasMunicipios_sub)[,-4]
+
+
+AlertasMunicipios_sub <- rbind(AlertasMunicipios_sub,
+                               c("OTROS", 
+                                 dim(AlertasGFW_cluster)[1] - sum(AlertasMunicipios_sub$Número.de.alertas),
+                                 NA,
+                                 dim(AlertasGFW_cluster)[1],
+                                 1))
+names(AlertasMunicipios_sub)[2] <- "Número de alertas"
+
+
+
+if(dim(AlertasMunicipios)[1] > 30){
+  color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(AlertasMunicipios_sub)[1], direction=1))
+  AlertasMunicipios_sub |> 
+    e_charts(MPIO_CNMBR
+             #, height = '400%'
+             ) |>
+    e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+    e_color(color_gradient_dynamic) |>
+    e_tooltip(trigger = "item") |>
+    e_legend(show = FALSE)
+} else{
+  color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(AlertasMunicipios)[1], direction=1))
+    AlertasMunicipios |> 
+    e_charts(MPIO_CNMBR
+             #, height = '400%'
+             ) |>
+    e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+    e_color(color_gradient_dynamic) |>
+    e_tooltip(trigger = "item") |>
+    e_legend(show = FALSE)
+}
+
+```
+
+```{r}
+AlertasMunicipios_IDEAM <- st_join(atdIDEAM, Municipios) |>
+                          group_by(MPIO_CNMBR) |>
+                          summarise(num_Alertas = n()) |>
+                          arrange(desc(num_Alertas))
+
+names(AlertasMunicipios_IDEAM)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(AlertasMunicipios_IDEAM)[1], direction=1))
+
+AlertasMunicipios_IDEAM |> 
+  e_charts(MPIO_CNMBR
+           #, height = '30%'
+           ) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_legend(show = FALSE)
+```
+
+### Row {height="24%"}
+
+::: card
+Este reporte revela información de alertas tempranas de deforestación en el departamento de Antioquia, proveniente de dos sistemas, Global Forest Watch (GFW) y el Instituto de Hidrología, Meteorología, y Estudios Ambientales (IDEAM).
+
+En esta primera parte del informe se muestran las alertas provenientes de ambos sistemas para un mismo periodo de tiempo, que corresponde a las últimas dos semanas en las cuales el IDEAM ha publicado las Alertas Tempranas de Deforestación (AT-D). En el periodo de tiempo analizado **`r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$FechaFin))`**, se encontró un total de **`r format(dim(AlertasGFW_cluster)[1], big.mark = ".", decimal.mark = ",")` alertas GFW** distribuidas en **`r dim(AlertasMunicipios)[1]` municipios**, y **`r format(dim(atdIDEAM)[1], big.mark=".", decimal.mark = ",")` alertas IDEAM** distribuidas en **`r dim(AlertasMunicipios_IDEAM)[1]` municipios**.
+:::
+
+## Column
+
+### Row {height="24%"}
+
+::: {.card title="Geovisor"}
+En el geovisor podrás consultar la distribución espacial de las alertas provenientes de ambos sistemas. A medida que te acerques a la zona de interés, podrás activar la capa de municipios y veredas para identificar el lugar en el que se reporta cada alerta, y si haces clic en la vereda de interés podrás conocer el nombre y el municipio asociado. En caso de que haya presencia de alertas IDEAM asociadas a áreas deforestadas superiores a 5 hectáreas (ha), podrás visualizarlas como si fueran polígonos, al hacer clic sobre ellos podrás consultar el área que delimitan.
+
+Adicionalmente, podrás activar o desactivar la imagen satelital más reciente de la zona. Esta imagen proviene de Planet, presenta resolución espacial de 5 metros y se actualiza con una frecuencia mensual. Para más información sobre estas imágenes consulta: <https://www.planet.com/nicfi/>.
+:::
+
+### Row {height="76%"}
+
+```{r}
+leaflet() |> 
+  addTiles() |> 
+  addTiles(urlTemplate = Link_xyz,
+           group = paste("Imagen Planet", FechaImagen),
+           attribution = "Image © 2024 Planet Labs PBC") |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Departamentos/MapServer/0/query?f=json&where=(DPTO_CNMBR%20IN%20(%27ANTIOQUIA%27))&outFields=*",
+    color = "gray",
+    fillOpacity = 0.2,
+    weight = 4
+  ) |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Municipios/MapServer/0/query?f=json&where=(DEPTO%20IN%20(%27ANTIOQUIA%27))&outFields=*",
+    color = "#03F",
+    labelProperty = JS("function(feature){var props = feature.properties; return props.MPIO_CNMBR}"),
+    fillOpacity = 0.2,
+    weight = 1,
+    group = "Municipios") |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/VEREDAS_2016/MapServer/0/query?f=json&where=(NOM_DEP%20IN%20('ANTIOQUIA'))&outFields=*",
+    color = "#005801",
+    popupProperty = JS("function(feature){var props = feature.properties; return props.NOMBRE_VER+ \" [\"+props.NOMB_MPIO+\"]\"}"),
+    opacity = 0.4,
+    weight = 1,
+    group = "Veredas") |>
+  addCircleMarkers(data = AlertasGFW_cluster, 
+             lng = st_coordinates(AlertasGFW_cluster)[,1], 
+             lat = st_coordinates(AlertasGFW_cluster)[,2], 
+             color = "#f50060",  
+             weight = 4,
+             group = "Sistema GFW",
+             clusterOptions = markerClusterOptions(iconCreateFunction=JS("function (cluster) {    
+    var childCount = cluster.getChildCount();  
+      c = 'rgba(245, 0, 96, 0.6);'
+    return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
+
+  }"))) |>
+  addCircleMarkers(data = atdIDEAM, 
+             lng = st_coordinates(atdIDEAM)[,1], 
+             lat = st_coordinates(atdIDEAM)[,2], 
+             color = "#ffd61e",  
+             weight = 4,
+             group = "Sistema IDEAM",
+             clusterOptions = markerClusterOptions(iconCreateFunction=JS("function (cluster) {    
+    var childCount = cluster.getChildCount();  
+      c = 'rgba(255, 214, 30, 1);'
+    return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
+
+  }"))) |>
+  addPolygons(data = atdIDEAM_POL, 
+              color = "#ff0000", 
+              weight = 4,
+              fillOpacity = 0.1,
+              popup = ~paste("Área (ha):", round(Area_ha,2)),
+              group = "Sistema IDEAM") |>
+  addLayersControl(overlayGroups = c("Municipios",
+                                     "Veredas",
+                                     "Sistema GFW",
+                                     "Sistema IDEAM",
+                                     paste("Imagen Planet", FechaImagen)
+                                     #,"Superficie Bosque 2021"
+                                     ),
+                   options = layersControlOptions(collapsed = TRUE)) |>
+  hideGroup(c(paste("Imagen Planet", FechaImagen),
+              "Municipios", "Veredas"
+              #, "Superficie Bosque 2021"
+              )) |>
+  # Agregar la leyenda personalizada con círculos y opacidades
+  addCircleLegend(
+    title = "Alertas deforestación",
+    labels = c("GFW", "IDEAM < 5 ha", "IDEAM > 5 ha"),
+    colors = c("#f50060", "#ffd61e", "#ffc5c5"),
+    borderColors = c("#f50060", "#ffd61e", "#ff0000"),  # Colores de los bordes
+    opacities = c(1, 1, 1),  # Opacidades de los círculos
+    sizes = c(10, 10, 13),  # Tamaños de los círculos
+    position = "bottomleft"
+  )
+```
+
+# Alertas de deforestación
+
+## Column {scrolling="true"}
+
+### Row {height="16%"}
+
+```{r}
+#| component: valuebox
+#| title: Alertas GFW
+list(
+  icon = "exclamation-triangle-fill",
+  color = "#A93154FF",
+  value = "Top 5"
+)
+```
+
+```{r}
+#| component: valuebox
+#| title: Alertas IDEAM
+list(
+  icon = "exclamation-triangle-fill",
+  color = "#028a88",
+  value = "Top 5"
+)
+```
+
+### Row {height="60%"}
+
+#### Column {.tabset}
+
+```{r}
+#| title: "1"
+Municipio1 <- as.character(AlertasMunicipios$MPIO_CNMBR[1])
+vereda_1 <- subset(veredas, NOMB_MPIO == Municipio1)
+
+Alertas_mun1 <- st_join(AlertasGFW_cluster, vereda_1) |>
+    group_by(NOMBRE_VER) |>
+    summarise(num_Alertas = n(),
+              Area_ha = sum(area)) |>
+    arrange(desc(Area_ha))
+
+Alertas_mun1 <- Alertas_mun1[-1,]
+
+names(Alertas_mun1)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(Alertas_mun1)[1], direction=1))
+
+Alertas_mun1 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio1, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "2"
+Municipio2 <- as.character(AlertasMunicipios$MPIO_CNMBR[2])
+vereda_2 <- subset(veredas, NOMB_MPIO == Municipio2)
+
+Alertas_mun2 <- st_join(AlertasGFW_cluster, vereda_2) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n(),
+                                    Area_ha = sum(area)) |>
+                          arrange(desc(Area_ha))
+
+Alertas_mun2 <- Alertas_mun2[-1,]
+
+names(Alertas_mun2)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(Alertas_mun2)[1], direction=1))
+
+Alertas_mun2 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio2, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "3"
+Municipio3 <- as.character(AlertasMunicipios$MPIO_CNMBR[3])
+vereda_3 <- subset(veredas, NOMB_MPIO == Municipio3)
+
+Alertas_mun3 <- st_join(AlertasGFW_cluster, vereda_3) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n(),
+                                    Area_ha = sum(area)) |>
+                          arrange(desc(Area_ha))
+
+Alertas_mun3 <- Alertas_mun3[-1,]
+
+names(Alertas_mun3)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(Alertas_mun3)[1], direction=1))
+
+Alertas_mun3 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio3, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "4"
+Municipio4 <- as.character(AlertasMunicipios$MPIO_CNMBR[4])
+vereda_4 <- subset(veredas, NOMB_MPIO == Municipio4)
+
+Alertas_mun4 <- st_join(AlertasGFW_cluster, vereda_4) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n(),
+                                    Area_ha = sum(area)) |>
+                          arrange(desc(Area_ha))
+
+Alertas_mun4 <- Alertas_mun4[-1,]
+
+names(Alertas_mun4)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(Alertas_mun4)[1], direction=1))
+
+Alertas_mun4 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio4, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "5"
+Municipio5 <- as.character(AlertasMunicipios$MPIO_CNMBR[5])
+vereda_5 <- subset(veredas, NOMB_MPIO == Municipio5)
+
+Alertas_mun5 <- st_join(AlertasGFW_cluster, vereda_5) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n(),
+                                    Area_ha = sum(area)) |>
+                          arrange(desc(Area_ha))
+
+Alertas_mun5 <- Alertas_mun5[-1,]
+
+names(Alertas_mun5)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(Alertas_mun5)[1], direction=1))
+
+Alertas_mun5 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio5, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+#### Column {.tabset}
+
+```{r}
+#| title: "1"
+Municipio1 <- as.character(AlertasMunicipios_IDEAM$MPIO_CNMBR[1])
+vereda_1 <- subset(veredas, NOMB_MPIO == Municipio1)
+
+Alertas_mun1 <- st_intersection(atdIDEAM, vereda_1) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n()) |>
+                          arrange(desc(num_Alertas))
+
+names(Alertas_mun1)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun1)[1], direction=1))
+
+Alertas_mun1 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio1, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "2"
+Municipio2 <- as.character(AlertasMunicipios_IDEAM$MPIO_CNMBR[2])
+vereda_2 <- subset(veredas, NOMB_MPIO == Municipio2)
+
+Alertas_mun2 <- st_intersection(atdIDEAM, vereda_2) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n()) |>
+                          arrange(desc(num_Alertas))
+
+names(Alertas_mun2)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun2)[1], direction=1))
+
+Alertas_mun2 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio2, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "3"
+Municipio3 <- as.character(AlertasMunicipios_IDEAM$MPIO_CNMBR[3])
+vereda_3 <- subset(veredas, NOMB_MPIO == Municipio3)
+
+Alertas_mun3 <- st_intersection(atdIDEAM, vereda_3) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n()) |>
+                          arrange(desc(num_Alertas))
+
+names(Alertas_mun3)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun3)[1], direction=1))
+
+Alertas_mun3 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio3, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "4"
+Municipio4 <- as.character(AlertasMunicipios_IDEAM$MPIO_CNMBR[4])
+vereda_4 <- subset(veredas, NOMB_MPIO == Municipio4)
+
+Alertas_mun4 <- st_intersection(atdIDEAM, vereda_4) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n()) |>
+                          arrange(desc(num_Alertas))
+
+names(Alertas_mun4)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun4)[1], direction=1))
+
+Alertas_mun4 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio4, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+```{r}
+#| title: "5"
+Municipio5 <- as.character(AlertasMunicipios_IDEAM$MPIO_CNMBR[5])
+vereda_5 <- subset(veredas, NOMB_MPIO == Municipio5)
+
+Alertas_mun5 <- st_intersection(atdIDEAM, vereda_5) |>
+                          group_by(NOMBRE_VER) |>
+                          summarise(num_Alertas = n()) |>
+                          arrange(desc(num_Alertas))
+
+names(Alertas_mun5)[2] <- "Número de alertas"
+color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun5)[1], direction=1))
+
+Alertas_mun5 |> 
+  e_charts(NOMBRE_VER) |>
+  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+  e_color(color_gradient_dynamic) |>
+  e_tooltip(trigger = "item") |>
+  e_title(paste(Municipio5, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+  e_legend(show = FALSE)
+```
+
+### Row {height="24%"}
+
+::: {.card title="<img src=\"Data/logo/informacion.png\" style=\"width:20px; height:20px; vertical-align:middle; margin-right:3px;\"> ¿Cómo GFW genera las alertas?"}
+GFW presenta un sistema integrado de alertas tempranas de deforestación, que genera información sobre la localización de alertas a una resolución espacial de 10 metros. Estas alertas presentan 3 niveles de confianza: i) bajo, ii) alto, y iii) muy alto; esta clasificación depende de la frecuencia de detecciones de los sistemas satelitales en los que se basa [GLAD-L, GLAD-S2 y RADD]. Si deseas consultar más información sobre esto, visita el siguiente link: <https://data.globalforestwatch.org/datasets/gfw::integrated-deforestation-alerts/about>.
+
+Las alertas GFW que presentamos en este reporte, en las dos primeras páginas, son correspondientes al último periodo de publicación de alertas tempranas del IDEAM. Realizamos algunas operaciones de filtrado que incluyeron la selección de las alertas con nivel de confianza alto y muy alto, y que correpondieran netamente a la capa de superficie de bosques más reciente que publica el IDEAM.
+
+Posiblemente notarás que el número de alertas GFW es considerablemente más alto que las del IDEAM. Esto se debe, en parte, a la resolución espacial tan fina que presenta GFW (10 m), y a las diferentes conceptualizaciones de bosque que tienen ambos sistemas. Para ilustrar esto, consideremos por ejemplo un área deforestada de 1 hectárea. El sistema IDEAM podría identificarla como 1 alerta de 1 ha, mientras que el sistema GFW podría identificarla como 100 alertas de 0.01 ha (10m x 10m). En ambos casos, corresponde a la misma zona deforestada.
+:::
+
+::: {.card title="<img src=\"Data/logo/informacion.png\" style=\"width:20px; height:20px; vertical-align:middle; margin-right:3px;\"> ¿Cómo IDEAM genera las alertas?"}
+El sistema de alertas tempranas de deforestación del IDEAM está compuesto por información espacial y genera alertas tipo punto y polígono. El punto identifica las zonas deforestadas que presentan un área menor de 5 hectáreas, mientras que el polígono considera las áreas de pérdida de bosque superiores a 5 ha. Adicionalmente, este sistema considera la capa de superficie de bosques que genera anualmente la misma entidad.
+:::
+
+## Column
+
+### Row {height="40%"}
+
+::: card
+En esta sección te presentamos los 5 municipios en los que reportan el mayor número de alertas para los sistemas GFW e IDEAM. Por parte de **GFW**, el top 5 de los municipios con más alertas de deforestación corresponden a **`r AlertasMunicipios$MPIO_CNMBR[1]`, `r AlertasMunicipios$MPIO_CNMBR[2]`, `r AlertasMunicipios$MPIO_CNMBR[3]`, `r AlertasMunicipios$MPIO_CNMBR[4]`** y **`r AlertasMunicipios$MPIO_CNMBR[5]`**. Mientras que por parte del **IDEAM**, en el top 5 se encuentran **`r AlertasMunicipios_IDEAM$MPIO_CNMBR[1]`, `r AlertasMunicipios_IDEAM$MPIO_CNMBR[2]`, `r AlertasMunicipios_IDEAM$MPIO_CNMBR[3]`, `r AlertasMunicipios_IDEAM$MPIO_CNMBR[4]`** y **`r AlertasMunicipios_IDEAM$MPIO_CNMBR[5]`**. En los gráficos podrás consultar la distribución del número de alertas para las veredas en cada uno de estos municipíos.
+
+Además, podrás consultar el histórico de alertas de deforestación quincenales para cada fecha de publicación del reporte.
+:::
+
+### Row {height="60%"}
+
+```{r}
+#| title: Histórico de alertas tempranas de deforestación
+Fechas <- c("2024-07-31", "2024-08-15", "2024-08-30", "2024-09-15", "2024-09-30")
+AlertasGFW <- c(110, 120, 89, 95, 100)
+AlertasIDEAM <- c(99, 110, 90, 120, 88)
+Data_Historico <- data.frame(Fechas, GFW=AlertasGFW, IDEAM=AlertasIDEAM)
+
+Data_Historico |>
+  e_charts(Fechas, height = '350%') |>
+  e_line(GFW, color="#A93154FF") |>
+  e_line(IDEAM, color="#028a88") |>
+  e_tooltip(trigger = "item") |>
+  e_axis_labels(x = "Fecha") |>
+  #e_title("Antioquia", "Histórico de alertas") |>
+  e_legend(top = 'bottom')
+```
+
+# Alertas recientes
+
+```{r message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
+
+#AlertasGFW <- st_read()
+GFW_puntos_planas <- st_read("Data/output/GFW_Alerts_Recent.shp")
+
+veredas <- st_read("Data/input/VeredasAntioquia.shp") |>
+  st_transform(crs=st_crs(GFW_puntos_planas))
+
+
+Alertas_filtro <- st_join(GFW_puntos_planas, veredas)
+Alertas_filtro <- Alertas_filtro |>
+  st_transform(crs=4326)
+
+Alertas_filtro$ID <- rownames(Alertas_filtro)
+
+Alertas_filtro$x_coord <- st_coordinates(Alertas_filtro)[,1]
+Alertas_filtro$y_coord <- st_coordinates(Alertas_filtro)[,2]
+
+resumenVeredas <- Alertas_filtro %>%
+  st_drop_geometry() %>%  # Elimina la columna de geometría
+  group_by(NOMBRE_VER) %>%
+  summarise(
+    ID = sample(ID, size = 1),
+    NOMB_MPIO = unique(NOMB_MPIO),
+    num_Alertas = n(),
+    .groups = "drop"
+  )
+
+resumenVeredas <- with(resumenVeredas, data.frame(ID = ID, NOMB_MPIO = NOMB_MPIO, NOMBRE_VER=NOMBRE_VER, num_Alertas = num_Alertas))
+
+
+#######################################################
+
+
+shared_alertas <- SharedData$new(Alertas_filtro, group = "shared_obj")
+
+shared_alertas_vereda <- SharedData$new(resumenVeredas, group = "shared_obj", key=~ID)
+
+
+geovisor <- leaflet(shared_alertas, width = "100%", height = 400) |> 
+  addTiles() |> 
+  addTiles(urlTemplate = Link_xyz,
+           group = paste("Imagen Planet", FechaImagen),
+           attribution = "Image © 2024 Planet Labs PBC") |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Departamentos/MapServer/0/query?f=json&where=(DPTO_CNMBR%20IN%20(%27ANTIOQUIA%27))&outFields=*",
+    color = "gray",
+    fillOpacity = 0.2,
+    weight = 4
+  ) |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Municipios/MapServer/0/query?f=json&where=(DEPTO%20IN%20(%27ANTIOQUIA%27))&outFields=*",
+    color = "#03F",
+    labelProperty = JS("function(feature){var props = feature.properties; return props.MPIO_CNMBR}"),
+    fillOpacity = 0.2,
+    weight = 1,
+    group = "Municipios") |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/VEREDAS_2016/MapServer/0/query?f=json&where=(NOM_DEP%20IN%20('ANTIOQUIA'))&outFields=*",
+    color = "#005801",
+    popupProperty = JS("function(feature){var props = feature.properties; return props.NOMBRE_VER+ \" [\"+props.NOMB_MPIO+\"]\"}"),
+    opacity = 0.4,
+    weight = 1,
+    group = "Veredas") |>
+  addCircleMarkers(color="#f50060", group = "Sistema GFW",
+                   radius = 1,
+                   weight = 2,
+                   popup = ~paste0(y_coord,"°N; ",x_coord,"°W")) |>
+  addLayersControl(overlayGroups = c("Municipios",
+                                     "Veredas",
+                                     "Sistema GFW",
+                                     paste("Imagen Planet", FechaImagen)
+                                     ),
+                   options = layersControlOptions(collapsed = TRUE)) |>
+  hideGroup(c("Municipios",
+              "Veredas",
+              paste("Imagen Planet", FechaImagen)
+              ))
+```
+
+## Column
+
+### Row {height="16%" fill="false" padding=0px}
+
+::: {.custom-card}
+
+<i class="bi bi-exclamation-triangle-fill" id="icono-alerta"></i> <span class="textoAlerts">Alertas totales GFW:</span>
+  
+::: {.alertas}
+`r summarywidget(shared_alertas_vereda, statistic='sum', column='num_Alertas', digits=0)`
+:::
+
+:::
+
+
+
+
+### Row {height="10%"}
+
+**Perido evaluado:** `r paste(unique(Alertas_filtro$Fech_nc), "-", unique(Alertas_filtro$Fech_fn))`.
+
+### Row {height="24%"}
+
+::: card
+```{r}
+filter_select(
+    id = "NOMB_MPIO", label = "Escribe y selecciona el municipio de interés:", 
+    sharedData = shared_alertas, group = ~NOMB_MPIO
+  )
+```
+:::
+
+### Row {height="50%"}
+
+```{r}
+datatable(shared_alertas_vereda, colnames=c("ID", "MUNICIPIO", "VEREDA", "NÚMERO DE ALERTAS"), rownames = FALSE, 
+          options = list(dom = 't',
+                         initComplete = JS(
+    "function(settings, json) {",
+    "$(this.api().table().header()).css({'background-color': '#5e4107', 'color': '#fff', 'font-size': '14px'});",
+    "$(this.api().table().body()).css({'font-size': '14px'});",
+    "}")))
+```
+
+## Column
+
+### Row {height="25%"}
+
+::: {.card title="<img src=\"Data/logo/informacion.png\" style=\"width:20px; height:20px; vertical-align:middle; margin-right:3px;\"> ¿Qué consideramos para estas alertas?"}
+Las alertas que se consideran para esta sección corresponden a las del sistema GFW. Acá el interés es mostrar las últimas alertas de deforestación publicadas por el sistema GFW de manera oportuna. Dado el poco tiempo de consulta (últimos 15 días), consideramos todos los niveles de confianza [bajo, alto y muy alto]. Estas alertas son filtradas con la última capa de superficie de bosque que publica el IDEAM.
+:::
+
+### Row {height="75%"}
+
+```{r}
+geovisor
+```
+
+
