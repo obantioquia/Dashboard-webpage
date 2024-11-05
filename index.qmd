@@ -35,7 +35,7 @@ library(rvest)
 
 ```{r message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
 
-
+# Reading data
 antioquia <- st_read("Data/input/Antioquia.geojson") |> 
                 st_transform(crs=4326)
 
