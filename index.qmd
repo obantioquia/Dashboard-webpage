@@ -36,22 +36,24 @@ library(rvest)
 ```{r message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
 
 # Reading data
-antioquia <- st_read("Data/input/Antioquia.geojson") |> 
-                st_transform(crs=4326)
+antioquia <- st_read("Data/input/Antioquia.geojson") #|> 
+                #st_transform(crs=4326)
 
-Municipios <- st_read("Data/input/MunicipiosAntioquia.geojson") |>
-                st_transform(crs=4326)
+Municipios <- st_read("Data/input/MunicipiosAntioquia.geojson") #|>
+                #st_transform(crs=4326)
 
-veredas <- st_read("Data/input/VeredasAntioquia.shp") |>
-  st_transform(crs=4326)
+veredas <- st_read("Data/input/VeredasAntioquia.shp") #|>
+  #st_transform(crs=4326)
 
-AlertasGFW_cluster <- st_read("Data/output/GFW_Alerts.shp") |> st_transform(crs=4326)
+AlertasGFW_cluster <- st_read("Data/output/GFW_Alerts.shp") #|> st_transform(crs=4326)
 
 
-atdIDEAM <- st_read("Data/output/IDEAM_atd.shp") |> st_transform(crs=4326)
+atdIDEAM <- st_read("Data/output/IDEAM_atd.shp") #|> st_transform(crs=4326)
 
-atdIDEAM_POL <- st_read("Data/output/IDEAM_atd_poligonos.shp") |> st_transform(crs=4326)
+atdIDEAM_POL <- st_read("Data/output/IDEAM_atd_poligonos.shp") #|> st_transform(crs=4326)
 atdIDEAM_POL$Area_ha <- st_area(atdIDEAM_POL)/10000
+
+data_historico <- read.csv("Data/data_historico.csv")
 
 
 # Consulta de basemap de Planet
@@ -611,15 +613,17 @@ Además, podrás consultar el histórico de alertas de deforestación quincenale
 
 ```{r}
 #| title: Histórico de alertas tempranas de deforestación
-Fechas <- c("2024-07-31", "2024-08-15", "2024-08-30", "2024-09-15", "2024-09-30")
-AlertasGFW <- c(110, 120, 89, 95, 100)
-AlertasIDEAM <- c(99, 110, 90, 120, 88)
-Data_Historico <- data.frame(Fechas, GFW=AlertasGFW, IDEAM=AlertasIDEAM)
+# Fechas <- c("2024-07-31", "2024-08-15", "2024-08-30", "2024-09-15", "2024-09-30")
+# AlertasGFW <- c(110, 120, 89, 95, 100)
+# AlertasIDEAM <- c(99, 110, 90, 120, 88)
+# Data_Historico <- data.frame(Fechas, GFW=AlertasGFW, IDEAM=AlertasIDEAM)
+
+Data_Historico <- data_historico
 
 Data_Historico |>
-  e_charts(Fechas, height = '350%') |>
-  e_line(GFW, color="#A93154FF") |>
-  e_line(IDEAM, color="#028a88") |>
+  e_charts(FechaPublicacion, height = '350%') |>
+  e_line(AlertasGFW, color="#A93154FF") |>
+  e_line(AlertasIDEAM, color="#028a88") |>
   e_tooltip(trigger = "item") |>
   e_axis_labels(x = "Fecha") |>
   #e_title("Antioquia", "Histórico de alertas") |>
@@ -637,8 +641,8 @@ veredas <- st_read("Data/input/VeredasAntioquia.shp") |>
 
 
 Alertas_filtro <- st_join(GFW_puntos_planas, veredas)
-Alertas_filtro <- Alertas_filtro |>
-  st_transform(crs=4326)
+Alertas_filtro <- Alertas_filtro #|>
+  #st_transform(crs=4326)
 
 Alertas_filtro$ID <- rownames(Alertas_filtro)
 
