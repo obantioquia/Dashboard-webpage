@@ -14,6 +14,7 @@ format:
 
 ```{r}
 #| message: false
+# Carga todas las librerías R necesarias para el dashboard
 library(tidyverse)
 library(httr2)
 library(sf)
@@ -34,7 +35,6 @@ library(rvest)
 ```
 
 ```{r message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
-
 # Reading data
 antioquia <- st_read("Data/input/Antioquia.geojson") #|> 
                 #st_transform(crs=4326)
@@ -46,7 +46,6 @@ veredas <- st_read("Data/input/VeredasAntioquia.shp") #|>
   #st_transform(crs=4326)
 
 AlertasGFW_cluster <- st_read("Data/output/GFW_Alerts.shp") #|> st_transform(crs=4326)
-
 
 atdIDEAM <- st_read("Data/output/IDEAM_atd.shp") #|> st_transform(crs=4326)
 
@@ -149,6 +148,9 @@ Periodo analizado: `r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$Fec
 ### Row {height="40%" title="Distribución por municipio"}
 
 ```{r}
+
+# Agregar número de alertas GFW por municipio
+
 AlertasMunicipios <- st_join(AlertasGFW_cluster, Municipios) |>
                           group_by(MPIO_CNMBR) |>
                           summarise(num_Alertas = n(),
@@ -174,6 +176,7 @@ AlertasMunicipios_sub <- rbind(AlertasMunicipios_sub,
 names(AlertasMunicipios_sub)[2] <- "Número de alertas"
 
 
+# Forma de mostrar el gráfico tipo donnut de la distribución de alertas por municipio.
 
 if(dim(AlertasMunicipios)[1] > 30){
   color_gradient_dynamic <- as.vector(paletteer_c("grDevices::Red-Blue", dim(AlertasMunicipios_sub)[1], direction=1))
@@ -200,6 +203,9 @@ if(dim(AlertasMunicipios)[1] > 30){
 ```
 
 ```{r}
+
+# Agregar número de alertas IDEAM por municipio
+
 AlertasMunicipios_IDEAM <- st_join(atdIDEAM, Municipios) |>
                           group_by(MPIO_CNMBR) |>
                           summarise(num_Alertas = n()) |>
@@ -239,6 +245,9 @@ Adicionalmente, podrás activar o desactivar la imagen satelital más reciente d
 ### Row {height="76%"}
 
 ```{r}
+
+# Creación de geovisor usando librería leaflet
+
 leaflet() |> 
   addTiles() |> 
   addTiles(urlTemplate = Link_xyz,
