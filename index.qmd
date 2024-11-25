@@ -15,6 +15,7 @@ format:
 ```{r}
 #| message: false
 # Carga todas las librerías R necesarias para el dashboard
+library(plotly)
 library(tidyverse)
 library(httr2)
 library(sf)
@@ -114,6 +115,102 @@ addCircleLegend <- function(
 
 # Geovisor
 
+## Column
+
+### Row {height="24%"}
+
+::: {.card title="Geovisor"}
+En el geovisor podrás consultar la distribución espacial de las alertas provenientes de ambos sistemas. A medida que te acerques a la zona de interés, podrás activar la capa de municipios y veredas para identificar el lugar en el que se reporta cada alerta, y si haces clic en la vereda de interés podrás conocer el nombre y el municipio asociado. En caso de que haya presencia de alertas IDEAM asociadas a áreas deforestadas superiores a 5 hectáreas (ha), podrás visualizarlas como si fueran polígonos, al hacer clic sobre ellos podrás consultar el área que delimitan.
+
+Adicionalmente, podrás activar o desactivar la imagen satelital más reciente de la zona. Esta imagen proviene de Planet, presenta resolución espacial de 5 metros y se actualiza con una frecuencia mensual. Para más información sobre estas imágenes consulta: <https://www.planet.com/nicfi/>.
+:::
+
+### Row {height="76%"}
+
+```{r}
+
+# Creación de geovisor usando librería leaflet
+
+leaflet() |> 
+  addTiles() |> 
+  addTiles(urlTemplate = Link_xyz,
+           group = paste("Imagen Planet", FechaImagen),
+           attribution = "Image © 2024 Planet Labs PBC") |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Departamentos/MapServer/0/query?f=json&where=(DPTO_CNMBR%20IN%20(%27ANTIOQUIA%27))&outFields=*",
+    color = "gray",
+    fillOpacity = 0.2,
+    weight = 4
+  ) |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Municipios/MapServer/0/query?f=json&where=(DEPTO%20IN%20(%27ANTIOQUIA%27))&outFields=*",
+    color = "#03F",
+    labelProperty = JS("function(feature){var props = feature.properties; return props.MPIO_CNMBR}"),
+    fillOpacity = 0.2,
+    weight = 1,
+    group = "Municipios") |>
+  addEsriFeatureLayer(
+    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/VEREDAS_2016/MapServer/0/query?f=json&where=(NOM_DEP%20IN%20('ANTIOQUIA'))&outFields=*",
+    color = "#005801",
+    popupProperty = JS("function(feature){var props = feature.properties; return props.NOMBRE_VER+ \" [\"+props.NOMB_MPIO+\"]\"}"),
+    opacity = 0.4,
+    weight = 1,
+    group = "Veredas") |>
+  addCircleMarkers(data = AlertasGFW_cluster, 
+             lng = st_coordinates(AlertasGFW_cluster)[,1], 
+             lat = st_coordinates(AlertasGFW_cluster)[,2], 
+             color = "#f50060",  
+             weight = 4,
+             group = "Sistema GFW",
+             clusterOptions = markerClusterOptions(iconCreateFunction=JS("function (cluster) {    
+    var childCount = cluster.getChildCount();  
+      c = 'rgba(245, 0, 96, 0.6);'
+    return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
+
+  }"))) |>
+  addCircleMarkers(data = atdIDEAM, 
+             lng = st_coordinates(atdIDEAM)[,1], 
+             lat = st_coordinates(atdIDEAM)[,2], 
+             color = "#ffd61e",  
+             weight = 4,
+             group = "Sistema IDEAM",
+             clusterOptions = markerClusterOptions(iconCreateFunction=JS("function (cluster) {    
+    var childCount = cluster.getChildCount();  
+      c = 'rgba(255, 214, 30, 1);'
+    return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
+
+  }"))) |>
+  addPolygons(data = atdIDEAM_POL, 
+              color = "#ff0000", 
+              weight = 4,
+              fillOpacity = 0.1,
+              popup = ~paste("Área (ha):", round(Area_ha,2)),
+              group = "Sistema IDEAM") |>
+  addLayersControl(overlayGroups = c("Municipios",
+                                     "Veredas",
+                                     "Sistema GFW",
+                                     "Sistema IDEAM",
+                                     paste("Imagen Planet", FechaImagen)
+                                     #,"Superficie Bosque 2021"
+                                     ),
+                   options = layersControlOptions(collapsed = TRUE)) |>
+  hideGroup(c(paste("Imagen Planet", FechaImagen),
+              "Municipios", "Veredas"
+              #, "Superficie Bosque 2021"
+              )) |>
+  # Agregar la leyenda personalizada con círculos y opacidades
+  addCircleLegend(
+    title = "Alertas deforestación",
+    labels = c("GFW", "IDEAM < 5 ha", "IDEAM > 5 ha"),
+    colors = c("#f50060", "#ffd61e", "#ffc5c5"),
+    borderColors = c("#f50060", "#ffd61e", "#ff0000"),  # Colores de los bordes
+    opacities = c(1, 1, 1),  # Opacidades de los círculos
+    sizes = c(10, 10, 13),  # Tamaños de los círculos
+    position = "bottomleft"
+  )
+```
+
+
 ## Column {scrolling="true"}
 
 ### Row {height="16%" fill="false"}
@@ -134,7 +231,7 @@ list(
 #| title: Alertas IDEAM
 list(
   icon = "exclamation-triangle-fill",
-  color = "#028a88",
+  color = "#d87300",
   value = format(dim(atdIDEAM)[1], big.mark=".", decimal.mark = ",")
 )
 ```
@@ -232,100 +329,6 @@ Este reporte revela información de alertas tempranas de deforestación en el de
 En esta primera parte del informe se muestran las alertas provenientes de ambos sistemas para un mismo periodo de tiempo, que corresponde a las últimas dos semanas en las cuales el IDEAM ha publicado las Alertas Tempranas de Deforestación (AT-D). En el periodo de tiempo analizado **`r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$FechaFin))`**, se encontró un total de **`r format(dim(AlertasGFW_cluster)[1], big.mark = ".", decimal.mark = ",")` alertas GFW** distribuidas en **`r dim(AlertasMunicipios)[1]` municipios**, y **`r format(dim(atdIDEAM)[1], big.mark=".", decimal.mark = ",")` alertas IDEAM** distribuidas en **`r dim(AlertasMunicipios_IDEAM)[1]` municipios**.
 :::
 
-## Column
-
-### Row {height="24%"}
-
-::: {.card title="Geovisor"}
-En el geovisor podrás consultar la distribución espacial de las alertas provenientes de ambos sistemas. A medida que te acerques a la zona de interés, podrás activar la capa de municipios y veredas para identificar el lugar en el que se reporta cada alerta, y si haces clic en la vereda de interés podrás conocer el nombre y el municipio asociado. En caso de que haya presencia de alertas IDEAM asociadas a áreas deforestadas superiores a 5 hectáreas (ha), podrás visualizarlas como si fueran polígonos, al hacer clic sobre ellos podrás consultar el área que delimitan.
-
-Adicionalmente, podrás activar o desactivar la imagen satelital más reciente de la zona. Esta imagen proviene de Planet, presenta resolución espacial de 5 metros y se actualiza con una frecuencia mensual. Para más información sobre estas imágenes consulta: <https://www.planet.com/nicfi/>.
-:::
-
-### Row {height="76%"}
-
-```{r}
-
-# Creación de geovisor usando librería leaflet
-
-leaflet() |> 
-  addTiles() |> 
-  addTiles(urlTemplate = Link_xyz,
-           group = paste("Imagen Planet", FechaImagen),
-           attribution = "Image © 2024 Planet Labs PBC") |>
-  addEsriFeatureLayer(
-    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Departamentos/MapServer/0/query?f=json&where=(DPTO_CNMBR%20IN%20(%27ANTIOQUIA%27))&outFields=*",
-    color = "gray",
-    fillOpacity = 0.2,
-    weight = 4
-  ) |>
-  addEsriFeatureLayer(
-    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Municipios/MapServer/0/query?f=json&where=(DEPTO%20IN%20(%27ANTIOQUIA%27))&outFields=*",
-    color = "#03F",
-    labelProperty = JS("function(feature){var props = feature.properties; return props.MPIO_CNMBR}"),
-    fillOpacity = 0.2,
-    weight = 1,
-    group = "Municipios") |>
-  addEsriFeatureLayer(
-    url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/VEREDAS_2016/MapServer/0/query?f=json&where=(NOM_DEP%20IN%20('ANTIOQUIA'))&outFields=*",
-    color = "#005801",
-    popupProperty = JS("function(feature){var props = feature.properties; return props.NOMBRE_VER+ \" [\"+props.NOMB_MPIO+\"]\"}"),
-    opacity = 0.4,
-    weight = 1,
-    group = "Veredas") |>
-  addCircleMarkers(data = AlertasGFW_cluster, 
-             lng = st_coordinates(AlertasGFW_cluster)[,1], 
-             lat = st_coordinates(AlertasGFW_cluster)[,2], 
-             color = "#f50060",  
-             weight = 4,
-             group = "Sistema GFW",
-             clusterOptions = markerClusterOptions(iconCreateFunction=JS("function (cluster) {    
-    var childCount = cluster.getChildCount();  
-      c = 'rgba(245, 0, 96, 0.6);'
-    return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
-
-  }"))) |>
-  addCircleMarkers(data = atdIDEAM, 
-             lng = st_coordinates(atdIDEAM)[,1], 
-             lat = st_coordinates(atdIDEAM)[,2], 
-             color = "#ffd61e",  
-             weight = 4,
-             group = "Sistema IDEAM",
-             clusterOptions = markerClusterOptions(iconCreateFunction=JS("function (cluster) {    
-    var childCount = cluster.getChildCount();  
-      c = 'rgba(255, 214, 30, 1);'
-    return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
-
-  }"))) |>
-  addPolygons(data = atdIDEAM_POL, 
-              color = "#ff0000", 
-              weight = 4,
-              fillOpacity = 0.1,
-              popup = ~paste("Área (ha):", round(Area_ha,2)),
-              group = "Sistema IDEAM") |>
-  addLayersControl(overlayGroups = c("Municipios",
-                                     "Veredas",
-                                     "Sistema GFW",
-                                     "Sistema IDEAM",
-                                     paste("Imagen Planet", FechaImagen)
-                                     #,"Superficie Bosque 2021"
-                                     ),
-                   options = layersControlOptions(collapsed = TRUE)) |>
-  hideGroup(c(paste("Imagen Planet", FechaImagen),
-              "Municipios", "Veredas"
-              #, "Superficie Bosque 2021"
-              )) |>
-  # Agregar la leyenda personalizada con círculos y opacidades
-  addCircleLegend(
-    title = "Alertas deforestación",
-    labels = c("GFW", "IDEAM < 5 ha", "IDEAM > 5 ha"),
-    colors = c("#f50060", "#ffd61e", "#ffc5c5"),
-    borderColors = c("#f50060", "#ffd61e", "#ff0000"),  # Colores de los bordes
-    opacities = c(1, 1, 1),  # Opacidades de los círculos
-    sizes = c(10, 10, 13),  # Tamaños de los círculos
-    position = "bottomleft"
-  )
-```
 
 # Alertas de deforestación
 
@@ -348,7 +351,7 @@ list(
 #| title: Alertas IDEAM
 list(
   icon = "exclamation-triangle-fill",
-  color = "#028a88",
+  color = "#d87300",
   value = "Top 5"
 )
 ```
@@ -629,14 +632,23 @@ Además, podrás consultar el histórico de alertas de deforestación quincenale
 
 Data_Historico <- data_historico
 
-Data_Historico |>
-  e_charts(FechaPublicacion, height = '350%') |>
-  e_line(AlertasGFW, color="#A93154FF") |>
-  e_line(AlertasIDEAM, color="#028a88") |>
-  e_tooltip(trigger = "item") |>
-  e_axis_labels(x = "Fecha") |>
-  #e_title("Antioquia", "Histórico de alertas") |>
-  e_legend(top = 'bottom')
+plot_ly(Data_Historico, x = ~FechaPublicacion) %>%
+  add_lines(y = ~AlertasGFW, name = "Alertas GFW", line = list(color = "#A93154FF")) %>%
+  add_lines(y = ~AlertasIDEAM, name = "Alertas IDEAM", line = list(color = "#d87300")) %>%
+  layout(
+    title = "",
+    xaxis = list(title = "Fecha de publicación"),
+    yaxis = list(title = "Número de Alertas")
+  )
+
+# Data_Historico |>
+#   e_charts(FechaPublicacion, height = '350%') |>
+#   e_line(AlertasGFW, color="#A93154FF") |>
+#   e_line(AlertasIDEAM, color="#d87300") |>
+#   e_tooltip(trigger = "item") |>
+#   e_axis_labels(x = "Fecha") |>
+#   #e_title("Antioquia", "Histórico de alertas") |>
+#   e_legend(top = 'bottom')
 ```
 
 # Alertas recientes
@@ -720,6 +732,24 @@ geovisor <- leaflet(shared_alertas, width = "100%", height = 400) |>
               ))
 ```
 
+
+## Column
+
+### Row {height="25%"}
+
+::: {.card title="<img src=\"Data/logo/informacion.png\" style=\"width:20px; height:20px; vertical-align:middle; margin-right:3px;\"> ¿Qué consideramos para estas alertas?"}
+Las alertas que se consideran para esta sección corresponden a las del sistema GFW. Acá el interés es mostrar las últimas alertas de deforestación publicadas por el sistema GFW de manera oportuna. Dado el poco tiempo de consulta (últimos 15 días), consideramos todos los niveles de confianza [bajo, alto y muy alto]. Estas alertas son filtradas con la última capa de superficie de bosque que publica el IDEAM.
+:::
+
+### Row {height="75%"}
+
+```{r}
+geovisor
+```
+
+
+
+
 ## Column
 
 ### Row {height="16%" fill="false" padding=0px}
@@ -762,20 +792,6 @@ datatable(shared_alertas_vereda, colnames=c("ID", "MUNICIPIO", "VEREDA", "NÚMER
     "$(this.api().table().header()).css({'background-color': '#5e4107', 'color': '#fff', 'font-size': '14px'});",
     "$(this.api().table().body()).css({'font-size': '14px'});",
     "}")))
-```
-
-## Column
-
-### Row {height="25%"}
-
-::: {.card title="<img src=\"Data/logo/informacion.png\" style=\"width:20px; height:20px; vertical-align:middle; margin-right:3px;\"> ¿Qué consideramos para estas alertas?"}
-Las alertas que se consideran para esta sección corresponden a las del sistema GFW. Acá el interés es mostrar las últimas alertas de deforestación publicadas por el sistema GFW de manera oportuna. Dado el poco tiempo de consulta (últimos 15 días), consideramos todos los niveles de confianza [bajo, alto y muy alto]. Estas alertas son filtradas con la última capa de superficie de bosque que publica el IDEAM.
-:::
-
-### Row {height="75%"}
-
-```{r}
-geovisor
 ```
 
 
