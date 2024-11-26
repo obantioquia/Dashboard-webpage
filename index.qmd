@@ -1,9 +1,8 @@
 ---
-title: "Sistema de alertas tempranas de deforestación"
+title: ""
 lang: es
 format: 
   dashboard:
-    logo: Data/logo/OBA-blanco-2020.png
     css: styles.css
     self-contained: true
     orientation: columns
@@ -53,7 +52,7 @@ atdIDEAM <- st_read("Data/output/IDEAM_atd.shp") #|> st_transform(crs=4326)
 atdIDEAM_POL <- st_read("Data/output/IDEAM_atd_poligonos.shp") #|> st_transform(crs=4326)
 atdIDEAM_POL$Area_ha <- st_area(atdIDEAM_POL)/10000
 
-data_historico <- read.csv("Data/data_historico.csv")
+data_historico <- read.csv2("data_historicov2.csv")
 
 
 # Consulta de basemap de Planet
@@ -624,7 +623,7 @@ Además, podrás consultar el histórico de alertas de deforestación quincenale
 ### Row {height="60%"}
 
 ```{r}
-#| title: Histórico de alertas tempranas de deforestación
+#| title: Histórico de alertas tempranas de deforestación quincenales
 # Fechas <- c("2024-07-31", "2024-08-15", "2024-08-30", "2024-09-15", "2024-09-30")
 # AlertasGFW <- c(110, 120, 89, 95, 100)
 # AlertasIDEAM <- c(99, 110, 90, 120, 88)
@@ -632,14 +631,53 @@ Además, podrás consultar el histórico de alertas de deforestación quincenale
 
 Data_Historico <- data_historico
 
-plot_ly(Data_Historico, x = ~FechaPublicacion) %>%
+# plot_ly(Data_Historico, x = ~as.Date(FechaPublicacion)) %>%
+#   add_lines(y = ~AlertasGFW, name = "Alertas GFW", line = list(color = "#A93154FF")) %>%
+#   add_lines(y = ~AlertasIDEAM, name = "Alertas IDEAM", line = list(color = "#d87300")) %>%
+#   layout(
+#     title = "",
+#     xaxis = list(title = "Fecha de publicación"),
+#     yaxis = list(title = "Número de Alertas")
+#   )
+
+
+plot_ly(Data_Historico, x = ~as.Date(FechaPublicacion)) %>%
   add_lines(y = ~AlertasGFW, name = "Alertas GFW", line = list(color = "#A93154FF")) %>%
-  add_lines(y = ~AlertasIDEAM, name = "Alertas IDEAM", line = list(color = "#d87300")) %>%
+  add_lines(
+    y = ~AlertasIDEAM,
+    name = "Alertas IDEAM",
+    line = list(color = "#d87300"),
+    yaxis = "y2" # Asociar esta serie al segundo eje
+  ) %>%
   layout(
     title = "",
-    xaxis = list(title = "Fecha de publicación"),
-    yaxis = list(title = "Número de Alertas")
+    xaxis = list(title = "Fecha"),
+    yaxis = list(
+      title = "Número de Alertas",
+      #titlefont = list(color = "#A93154FF"),
+      tickfont = list(color = "#A93154FF")
+    ),
+    yaxis2 = list(
+      #title = "Número de Alertas IDEAM",
+      overlaying = "y",
+      side = "right",
+      #titlefont = list(color = "#d87300"),
+      tickfont = list(color = "#d87300")
+    ),
+    legend = list(
+      x = 0.75,  # Posición horizontal (0 = izquierda, 1 = derecha)
+      y = 0.9,  # Posición vertical (0 = abajo, 1 = arriba)
+      orientation = "v" 
+    ),
+    margin = list(
+      l = 50,  # Márgen izquierdo
+      r = 60,  # Márgen derecho para acomodar los valores del segundo eje
+      t = 50,  # Márgen superior
+      b = 50   # Márgen inferior
+    )
   )
+
+
 
 # Data_Historico |>
 #   e_charts(FechaPublicacion, height = '350%') |>
