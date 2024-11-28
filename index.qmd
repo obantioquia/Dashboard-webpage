@@ -499,13 +499,17 @@ Alertas_mun1 <- st_intersection(atdIDEAM, vereda_1) |>
 names(Alertas_mun1)[2] <- "Número de alertas"
 color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun1)[1], direction=1))
 
-Alertas_mun1 |> 
-  e_charts(NOMBRE_VER) |>
-  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
-  e_color(color_gradient_dynamic) |>
-  e_tooltip(trigger = "item") |>
-  e_title(paste(Municipio1, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
-  e_legend(show = FALSE)
+if (nrow(Alertas_mun1) > 0) {
+  Alertas_mun1 |> 
+    e_charts(NOMBRE_VER) |>
+    e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+    e_color(color_gradient_dynamic) |>
+    e_tooltip(trigger = "item") |>
+    e_title(paste(Municipio1, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+    e_legend(show = FALSE)
+} else {
+  print("Sin información")
+}
 ```
 
 ```{r}
@@ -521,13 +525,17 @@ Alertas_mun2 <- st_intersection(atdIDEAM, vereda_2) |>
 names(Alertas_mun2)[2] <- "Número de alertas"
 color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun2)[1], direction=1))
 
-Alertas_mun2 |> 
-  e_charts(NOMBRE_VER) |>
-  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
-  e_color(color_gradient_dynamic) |>
-  e_tooltip(trigger = "item") |>
-  e_title(paste(Municipio2, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
-  e_legend(show = FALSE)
+if (nrow(Alertas_mun2) > 0) {
+  Alertas_mun2 |> 
+    e_charts(NOMBRE_VER) |>
+    e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+    e_color(color_gradient_dynamic) |>
+    e_tooltip(trigger = "item") |>
+    e_title(paste(Municipio2, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+    e_legend(show = FALSE)
+} else {
+  print("Sin información")
+}
 ```
 
 ```{r}
@@ -543,13 +551,17 @@ Alertas_mun3 <- st_intersection(atdIDEAM, vereda_3) |>
 names(Alertas_mun3)[2] <- "Número de alertas"
 color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun3)[1], direction=1))
 
-Alertas_mun3 |> 
-  e_charts(NOMBRE_VER) |>
-  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
-  e_color(color_gradient_dynamic) |>
-  e_tooltip(trigger = "item") |>
-  e_title(paste(Municipio3, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
-  e_legend(show = FALSE)
+if (nrow(Alertas_mun3) > 0) {
+  Alertas_mun3 |> 
+    e_charts(NOMBRE_VER) |>
+    e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+    e_color(color_gradient_dynamic) |>
+    e_tooltip(trigger = "item") |>
+    e_title(paste(Municipio3, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+    e_legend(show = FALSE)
+} else {
+  print("Sin información")
+}
 ```
 
 ```{r}
@@ -565,35 +577,48 @@ Alertas_mun4 <- st_intersection(atdIDEAM, vereda_4) |>
 names(Alertas_mun4)[2] <- "Número de alertas"
 color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun4)[1], direction=1))
 
-Alertas_mun4 |> 
-  e_charts(NOMBRE_VER) |>
-  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
-  e_color(color_gradient_dynamic) |>
-  e_tooltip(trigger = "item") |>
-  e_title(paste(Municipio4, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
-  e_legend(show = FALSE)
+if (nrow(Alertas_mun4) > 0) {
+  Alertas_mun4 |> 
+    e_charts(NOMBRE_VER) |>
+    e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
+    e_color(color_gradient_dynamic) |>
+    e_tooltip(trigger = "item") |>
+    e_title(paste(Municipio4, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
+    e_legend(show = FALSE)} else{
+  print("Sin información")
+}
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 #| title: "5"
 Municipio5 <- as.character(AlertasMunicipios_IDEAM$MPIO_CNMBR[5])
 vereda_5 <- subset(veredas, NOMB_MPIO == Municipio5)
 
-Alertas_mun5 <- st_intersection(atdIDEAM, vereda_5) |>
-                          group_by(NOMBRE_VER) |>
-                          summarise(num_Alertas = n()) |>
-                          arrange(desc(num_Alertas))
+# Realizar la intersección
+Alertas_mun5 <- st_intersection(atdIDEAM, vereda_5)
 
-names(Alertas_mun5)[2] <- "Número de alertas"
-color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun5)[1], direction=1))
+# Verificar si la intersección tiene datos antes de agrupar
+if (!is.null(Alertas_mun5) && nrow(Alertas_mun5) > 0) {
+  Alertas_mun5 <- Alertas_mun5 |>
+                  group_by(NOMBRE_VER) |>
+                  summarise(num_Alertas = n()) |>
+                  arrange(desc(num_Alertas))
 
-Alertas_mun5 |> 
-  e_charts(NOMBRE_VER) |>
-  e_pie(`Número de alertas`, radius = c("30%", "50%"), top="10%") |>
-  e_color(color_gradient_dynamic) |>
-  e_tooltip(trigger = "item") |>
-  e_title(paste(Municipio5, "-", "Distribución por vereda"),textVerticalAlign='right', textStyle=list(fontSize=14)) |>
-  e_legend(show = FALSE)
+  names(Alertas_mun5)[2] <- "Número de alertas"
+  color_gradient_dynamic <- as.vector(paletteer_c("grDevices::heat.colors", dim(Alertas_mun5)[1], direction=1))
+
+  # Crear el gráfico si hay datos
+  Alertas_mun5 |> 
+    e_charts(NOMBRE_VER) |>
+    e_pie(`Número de alertas`, radius = c("30%", "50%"), top = "10%") |>
+    e_color(color_gradient_dynamic) |>
+    e_tooltip(trigger = "item") |>
+    e_title(paste(Municipio5, "-", "Distribución por vereda"), textVerticalAlign = 'right', textStyle = list(fontSize = 14)) |>
+    e_legend(show = FALSE)
+} else {
+  # Mostrar mensaje si no hay datos
+  print("Sin información")
+}
 ```
 
 ### Row {height="24%"}
