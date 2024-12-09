@@ -2,3 +2,6 @@
   quarto-pub:
     - id: 7525431c-d830-4029-bec0-3c47e041040c
       url: 'https://obantioquia.quarto.pub/deforestacion-dashboard'
+  netlify:
+    - id: 98ea2942-eefa-45e3-8e2d-5e2028b236e3
+      url: 'https://creative-stardust-024b1e.netlify.app'
