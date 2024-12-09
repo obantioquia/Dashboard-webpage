@@ -323,9 +323,8 @@ AlertasMunicipios_IDEAM |>
 ### Row {height="24%"}
 
 ::: card
-Este reporte revela información de alertas tempranas de deforestación en el departamento de Antioquia, proveniente de dos sistemas, Global Forest Watch (GFW) y el Instituto de Hidrología, Meteorología, y Estudios Ambientales (IDEAM).
 
-En esta primera parte del informe se muestran las alertas provenientes de ambos sistemas para un mismo periodo de tiempo, que corresponde a las últimas dos semanas en las cuales el IDEAM ha publicado las Alertas Tempranas de Deforestación (AT-D). En el periodo de tiempo analizado **`r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$FechaFin))`**, se encontró un total de **`r format(dim(AlertasGFW_cluster)[1], big.mark = ".", decimal.mark = ",")` alertas GFW** distribuidas en **`r dim(AlertasMunicipios)[1]` municipios**, y **`r format(dim(atdIDEAM)[1], big.mark=".", decimal.mark = ",")` alertas IDEAM** distribuidas en **`r dim(AlertasMunicipios_IDEAM)[1]` municipios**.
+Se presentan las alertas tempranas de deforestación en el departamento de Antioquia para el periodo **`r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$FechaFin))`**, a partir de dos sistemas, Global Forest Watch (GFW) y el Instituto de Hidrología, Meteorología, y Estudios Ambientales (IDEAM). Se reportaron un total de **`r format(dim(AlertasGFW_cluster)[1], big.mark = ".", decimal.mark = ",")` alertas GFW** distribuidas en **`r dim(AlertasMunicipios)[1]` municipios**, y **`r format(dim(atdIDEAM)[1], big.mark=".", decimal.mark = ",")` alertas IDEAM** distribuidas en **`r dim(AlertasMunicipios_IDEAM)[1]` municipios**.
 :::
 
 
