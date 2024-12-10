@@ -75,6 +75,16 @@ Link_xyz <- strsplit(Links, " : ")[[1]][3]
 FechaImagen <- NombrePlanet |> strsplit(" ")
 FechaImagen <- FechaImagen[[1]][4]
 
+# Filtro penultimo basemap
+lastBasemap_penul <- Tabla[(dim(Tabla)[1]-1),] 
+NombrePlanet_penul <- lastBasemap_penul[1,1]
+Links_penul <- lastBasemap_penul[1,2]
+Link_xyz_penul <- strsplit(Links_penul, " : ")[[1]][3]
+
+FechaImagen_penul <- NombrePlanet_penul |> strsplit(" ")
+FechaImagen_penul <- FechaImagen_penul[[1]][4]
+
+
 addCircleLegend <- function(
     map, title = "", labels, colors, sizes, borderColors, opacities,
     position = c("topright", "bottomright", "bottomleft", "topleft"),
@@ -109,6 +119,46 @@ addCircleLegend <- function(
   leaflet::addControl(map, html = legend_html, position = position, layerId = layerId)
 }
 
+
+## Imagenes Planet Match IDEAM
+parsed_html <- read_html("https://api.planet.com/basemaps/v1/services?api_key=9fdb79ea027a47f9acc452a47b7ff779")
+
+Tabla <- as.data.frame(html_table(parsed_html)[[1]])
+
+Tabla2 <- Tabla[72:dim(Tabla)[1],]
+
+lista1 <- strsplit(Tabla2$Basemap, " ")
+datos_planet <- as.data.frame(do.call(rbind, lista1))
+
+lastMonthIDEAM <- month(atdIDEAM$FechaFin[1])
+previousMonthIDEAM <- lastMonthIDEAM - 1
+
+lastMonthYear <- ym(format(as.Date(atdIDEAM$FechaFin[1]), "%Y-%m"))
+previousMonthYear <- ym(format(lastMonthYear-15, "%Y-%m"))
+
+mesesPlanet <- ym(datos_planet$V4)
+
+index <- which(mesesPlanet == lastMonthYear | mesesPlanet == previousMonthYear)
+
+LastImage <- Tabla2[index[2],]
+PreviosImage <- Tabla2[index[1],]
+
+# Last image 
+NombrePlanet1 <- LastImage[1,1]
+Links1 <- LastImage[1,2]
+Link_xyz1 <- strsplit(Links1, " : ")[[1]][3]
+FechaImagen1 <- NombrePlanet1 |> strsplit(" ")
+FechaImagen1 <- FechaImagen1[[1]][4]
+
+
+# Previous image 
+NombrePlanet2 <- PreviosImage[1,1]
+Links2 <- PreviosImage[1,2]
+Link_xyz2 <- strsplit(Links2, " : ")[[1]][3]
+FechaImagen2 <- NombrePlanet2 |> strsplit(" ")
+FechaImagen2 <- FechaImagen2[[1]][4]
+
+
 ```
 
 
@@ -135,9 +185,12 @@ Adicionalmente, podrás activar o desactivar la imagen satelital más reciente d
 # Creación de geovisor usando librería leaflet
 
 leaflet() |> 
-  addTiles() |> 
-  addTiles(urlTemplate = Link_xyz,
-           group = paste("Imagen Planet", FechaImagen),
+  addTiles(group = "Mapa Base Leaflet") |> 
+  addTiles(urlTemplate = Link_xyz1,
+           group = paste("Imagen Planet", FechaImagen1),
+           attribution = "Image © 2024 Planet Labs PBC") |>
+  addTiles(urlTemplate = Link_xyz2,
+           group = paste("Imagen Planet", FechaImagen2),
            attribution = "Image © 2024 Planet Labs PBC") |>
   addEsriFeatureLayer(
     url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Departamentos/MapServer/0/query?f=json&where=(DPTO_CNMBR%20IN%20(%27ANTIOQUIA%27))&outFields=*",
@@ -200,12 +253,16 @@ leaflet() |>
   addLayersControl(overlayGroups = c("Municipios",
                                      "Veredas",
                                      "Sistema GFW",
-                                     "Sistema IDEAM",
-                                     paste("Imagen Planet", FechaImagen)
+                                     "Sistema IDEAM"
+                                     # paste("Imagen Planet", FechaImagen)
                                      #,"Superficie Bosque 2021"
                                      ),
+                   baseGroups = c("Mapa Base Leaflet",
+                                  paste("Imagen Planet", FechaImagen1),
+                                  paste("Imagen Planet", FechaImagen2)),
                    options = layersControlOptions(collapsed = TRUE)) |>
-  hideGroup(c(paste("Imagen Planet", FechaImagen),
+  hideGroup(c(paste("Imagen Planet", FechaImagen1),
+              paste("Imagen Planet", FechaImagen2),
               "Municipios", "Veredas"
               #, "Superficie Bosque 2021"
               )) |>
@@ -218,7 +275,16 @@ leaflet() |>
     opacities = c(1, 1, 1),  # Opacidades de los círculos
     sizes = c(10, 10, 13),  # Tamaños de los círculos
     position = "bottomleft"
-  )
+  ) |>
+  addMeasure(position = "bottomright",
+             primaryLengthUnit = "meters",
+             secondaryLengthUnit = "kilometers",
+             primaryAreaUnit = "hectares",
+             secondaryAreaUnit = "sqmeters",
+             localization = "es",
+             decPoint = ",",
+             thousandsSep = ".") 
+
 ```
 
 
@@ -768,9 +834,12 @@ shared_alertas_vereda <- SharedData$new(resumenVeredas, group = "shared_obj", ke
 
 
 geovisor <- leaflet(shared_alertas, width = "100%", height = 400) |> 
-  addTiles() |> 
+  addTiles(group = "Mapa Base Leaflet") |> 
   addTiles(urlTemplate = Link_xyz,
            group = paste("Imagen Planet", FechaImagen),
+           attribution = "Image © 2024 Planet Labs PBC") |>
+  addTiles(urlTemplate = Link_xyz_penul,
+           group = paste("Imagen Planet", FechaImagen_penul),
            attribution = "Image © 2024 Planet Labs PBC") |>
   addEsriFeatureLayer(
     url = "https://ags.esri.co/arcgis/rest/services/DatosAbiertos/MGN_Departamentos/MapServer/0/query?f=json&where=(DPTO_CNMBR%20IN%20(%27ANTIOQUIA%27))&outFields=*",
@@ -798,14 +867,27 @@ geovisor <- leaflet(shared_alertas, width = "100%", height = 400) |>
                    popup = ~paste0("<b>Coordenadas</b>: ",y_coord,"°N, ",x_coord,"°W","<br>","<b>Vereda</b>: ",NOMBRE_VER, "<br>", "<b>Municipio</b>: ", NOMB_MPIO)) |>
   addLayersControl(overlayGroups = c("Municipios",
                                      "Veredas",
-                                     "Sistema GFW",
-                                     paste("Imagen Planet", FechaImagen)
+                                     "Sistema GFW" #,
+                                     #paste("Imagen Planet", FechaImagen)
                                      ),
+                   baseGroups = c("Mapa Base Leaflet",
+                                  paste("Imagen Planet", FechaImagen),
+                                  paste("Imagen Planet", FechaImagen_penul)),
                    options = layersControlOptions(collapsed = TRUE)) |>
   hideGroup(c("Municipios",
               "Veredas",
-              paste("Imagen Planet", FechaImagen)
-              ))
+              paste("Imagen Planet", FechaImagen),
+              paste("Imagen Planet", FechaImagen_penul)
+              )) |>
+  addMeasure(position = "bottomright",
+             primaryLengthUnit = "meters",
+             secondaryLengthUnit = "kilometers",
+             primaryAreaUnit = "hectares",
+             secondaryAreaUnit = "sqmeters",
+             localization = "es",
+             decPoint = ",",
+             thousandsSep = ".") 
+
 ```
 
 
