@@ -283,7 +283,36 @@ leaflet() |>
              secondaryAreaUnit = "sqmeters",
              localization = "es",
              decPoint = ",",
-             thousandsSep = ".") 
+             thousandsSep = ".") |>
+  htmlwidgets::onRender("
+    function(el, x) {
+      var map = this;
+      
+      // Crear un div para mostrar las coordenadas
+      var coordsDiv = L.DomUtil.create('div', 'leaflet-control coords-display');
+      coordsDiv.style.backgroundColor = '#057743';
+      coordsDiv.style.color = 'white';
+      coordsDiv.style.padding = '5px';
+      coordsDiv.style.border = '1px solid white';
+      coordsDiv.style.fontSize = '12px';
+      coordsDiv.style.fontFamily = 'Arial, sans-serif';
+      coordsDiv.style.position = 'absolute';
+      coordsDiv.style.bottom = '10px';
+      coordsDiv.style.left = '50%';
+      coordsDiv.style.transform = 'translateX(-50%)';
+      coordsDiv.innerHTML = 'Lat: 0.000000, Lng: 0.000000';
+      
+      // Añadir el div al mapa
+      map.getContainer().appendChild(coordsDiv);
+
+      // Actualizar las coordenadas al mover el mouse
+      map.on('mousemove', function(e) {
+        var lat = e.latlng.lat.toFixed(6);
+        var lng = e.latlng.lng.toFixed(6);
+        coordsDiv.innerHTML = 'Lat: ' + lat + ', Lng: ' + lng;
+      });
+    }
+  ") 
 
 ```
 
@@ -886,7 +915,36 @@ geovisor <- leaflet(shared_alertas, width = "100%", height = 400) |>
              secondaryAreaUnit = "sqmeters",
              localization = "es",
              decPoint = ",",
-             thousandsSep = ".") 
+             thousandsSep = ".") |>
+  htmlwidgets::onRender("
+    function(el, x) {
+      var map = this;
+      
+      // Crear un div para mostrar las coordenadas
+      var coordsDiv = L.DomUtil.create('div', 'leaflet-control coords-display');
+      coordsDiv.style.backgroundColor = '#057743';
+      coordsDiv.style.color = 'white';
+      coordsDiv.style.padding = '5px';
+      coordsDiv.style.border = '1px solid white';
+      coordsDiv.style.fontSize = '12px';
+      coordsDiv.style.fontFamily = 'Arial, sans-serif';
+      coordsDiv.style.position = 'absolute';
+      coordsDiv.style.bottom = '10px';
+      coordsDiv.style.left = '50%';
+      coordsDiv.style.transform = 'translateX(-50%)';
+      coordsDiv.innerHTML = 'Lat: 0.000000, Lng: 0.000000';
+      
+      // Añadir el div al mapa
+      map.getContainer().appendChild(coordsDiv);
+
+      // Actualizar las coordenadas al mover el mouse
+      map.on('mousemove', function(e) {
+        var lat = e.latlng.lat.toFixed(6);
+        var lng = e.latlng.lng.toFixed(6);
+        coordsDiv.innerHTML = 'Lat: ' + lat + ', Lng: ' + lng;
+      });
+    }
+  ") 
 
 ```
 
