@@ -841,17 +841,24 @@ Alertas_filtro$ID <- rownames(Alertas_filtro)
 Alertas_filtro$x_coord <- st_coordinates(Alertas_filtro)[,1]
 Alertas_filtro$y_coord <- st_coordinates(Alertas_filtro)[,2]
 
+
+Alertas_filtro$Vereda_Mun <- paste0(Alertas_filtro$NOMBRE_VER,
+                                    "_",
+                                    Alertas_filtro$NOMB_MPIO)
+
 resumenVeredas <- Alertas_filtro %>%
   st_drop_geometry() %>%  # Elimina la columna de geometría
-  group_by(NOMBRE_VER) %>%
+  group_by(Vereda_Mun) %>%
   summarise(
     ID = sample(ID, size = 1),
+    NOMBRE_VER = unique(NOMBRE_VER),
     NOMB_MPIO = unique(NOMB_MPIO),
     num_Alertas = n(),
     .groups = "drop"
   )
 
 resumenVeredas <- with(resumenVeredas, data.frame(ID = ID, NOMB_MPIO = NOMB_MPIO, NOMBRE_VER=NOMBRE_VER, num_Alertas = num_Alertas))
+
 
 
 #######################################################
