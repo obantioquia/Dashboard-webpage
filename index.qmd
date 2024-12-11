@@ -245,7 +245,7 @@ leaflet() |>
 
   }"))) |>
   addPolygons(data = atdIDEAM_POL, 
-              color = "#ff0000", 
+              color = "#d87300", 
               weight = 4,
               fillOpacity = 0.1,
               popup = ~paste("Área (ha):", round(Area_ha,2)),
