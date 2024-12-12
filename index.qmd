@@ -240,9 +240,10 @@ Periodo analizado: `r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$Fec
 list(
   icon = "exclamation-triangle-fill",
   color = "#A93154FF",
-  value = format(dim(AlertasGFW_cluster)[1], big.mark = ".", decimal.mark = ",")
+  value = paste0(format(dim(AlertasGFW_cluster)[1], big.mark = ".", decimal.mark = ","))
 )
 ```
+
 
 ```{r}
 #| component: valuebox
@@ -253,6 +254,7 @@ list(
   value = format(dim(atdIDEAM)[1], big.mark=".", decimal.mark = ",")
 )
 ```
+
 
 
 ### Row {height="40%" title="Distribución por municipio"}
