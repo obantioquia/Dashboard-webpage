@@ -271,7 +271,7 @@ leaflet() |>
     title = "Alertas deforestación",
     labels = c("GFW", "IDEAM < 5 ha", "IDEAM > 5 ha"),
     colors = c("#f50060", "#ffd61e", "#ffc5c5"),
-    borderColors = c("#f50060", "#ffd61e", "#ff0000"),  # Colores de los bordes
+    borderColors = c("#f50060", "#ffd61e", "#d87300"),  # Colores de los bordes
     opacities = c(1, 1, 1),  # Opacidades de los círculos
     sizes = c(10, 10, 13),  # Tamaños de los círculos
     position = "bottomleft"
