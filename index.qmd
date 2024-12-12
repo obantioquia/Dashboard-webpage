@@ -322,7 +322,7 @@ leaflet() |>
 ### Row {height = "20%"}
 
 ::: {.card title="Distribución por municipio"}
-Periodo analizado: `r paste(unique(atdIDEAM$FechaInit), "-", unique(atdIDEAM$FechaFin))`
+
 :::
 
 
