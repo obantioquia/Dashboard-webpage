@@ -309,7 +309,7 @@ leaflet() |>
       map.on('mousemove', function(e) {
         var lat = e.latlng.lat.toFixed(6);
         var lng = e.latlng.lng.toFixed(6);
-        coordsDiv.innerHTML = 'Lat: ' + lat + ', Lng: ' + lng;
+        coordsDiv.innerHTML = 'Lat: ' + lat + '°N' + ', Lng: ' + lng + '°W';
       });
     }
   ") 
@@ -950,7 +950,7 @@ geovisor <- leaflet(shared_alertas, width = "100%", height = 400) |>
       map.on('mousemove', function(e) {
         var lat = e.latlng.lat.toFixed(6);
         var lng = e.latlng.lng.toFixed(6);
-        coordsDiv.innerHTML = 'Lat: ' + lat + ', Lng: ' + lng;
+        coordsDiv.innerHTML = 'Lat: ' + lat + '°N' + ', Lng: ' + lng + '°W';
       });
     }
   ") 
