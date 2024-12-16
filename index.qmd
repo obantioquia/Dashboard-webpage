@@ -162,7 +162,7 @@ FechaImagen2 <- FechaImagen2[[1]][4]
 ```
 
 
-<span class="title-style"> Reporte `r 1` </span>
+<span class="title-style"> Reporte `r length(dir("/Users/investigadora/Desktop/OBA_REPORTES_GFW/DeforestationData-back/ReportesPDF"))+1` </span>
 
 <span class="fecha-style"> `r format(Sys.Date(), "%d de %B de %Y")` </span>
 
