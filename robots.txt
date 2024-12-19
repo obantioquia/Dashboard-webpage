@@ -1,1 +1,1 @@
-Sitemap: https://obantioquia.github.io/deforestacion-dashboard/sitemap.xml
+Sitemap: https://obantioquia.github.io/Dashboard-webpage/sitemap.xml
